@@ -14,7 +14,7 @@ export class TaskJobService {
     this.emitEvent2.emitAsync('start.bot.24');
   }
 
-  @Cron('10 */5 * * * *', {
+  @Cron('50 */5 * * * *', {
     name: 'start.bot.client',
     timeZone: 'Asia/Ho_Chi_Minh',
   })

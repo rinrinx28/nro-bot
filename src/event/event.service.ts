@@ -234,6 +234,27 @@ export class EventService {
     return shuffledBots.slice(0, halfBots);
   }
 
+  // TODO Compare them to the current hour
+  isCurrentTimeInRange(range: string) {
+    const [start, end] = range.split('-').map(Number);
+    const currentHour = new Date().getHours();
+
+    return currentHour >= start && currentHour < end;
+  }
+
+  // TODO Call API to Main Server
+  async place_bet_on_server(data: PlaceField) {
+    try {
+      await this.httpService.axiosRef.post(
+        this.url_server + '/mini-game/v2/place',
+        data,
+      );
+    } catch (err: any) {
+      console.log(err);
+      this.logger.log(`Err place bet Auto: ${err.message}`);
+    }
+  }
+
   // TODO Start Bot Sv 24
   @OnEvent('start.bot.24', { async: true })
   async start_bot_24() {
@@ -250,10 +271,11 @@ export class EventService {
       if (!game_info) throw new Error('Minigame not found');
       //   Get config server
       const config_server = await this.get_config_server('24', '24');
-      const list_bot_random = this.getRandomBotsForBet(list_bots);
-      for (const bot of list_bot_random) {
+      // Find bot isvalidata for auto bet
+      const list_filter_bots: { data: PlaceField; time: number }[] = [];
+      for (const bot of list_bots) {
         const { uid, meta, isAvailable } = bot;
-        const { active, TotalTrade, max_sv } = meta;
+        const { active, TotalTrade } = meta;
         const target = await this.UserModel.findById(uid);
         const target_totalTrade = target.meta.totalTrade;
         const { max, min } = config_server;
@@ -263,14 +285,29 @@ export class EventService {
         let time_end = moment(`${time_end_isodate}`).unix();
         let time_late = time_end - current_time;
 
+        // let check config range time of a bot
+        let isRange = this.isCurrentTimeInRange(active);
+
+        if (!isRange) {
+          this.logger.log(`Skip placing bet: out range time active ${active}`);
+          // If the time current is less than time range, skip placing a bet
+          continue;
+        }
+
+        if (!isAvailable) {
+          this.logger.log('Skip placing bet: Bot not is available');
+          // If the bot not is available, skip placing a bet
+          continue;
+        }
+
         if (time_late < 10) {
-          this.logger.log('Skip placing bet');
+          this.logger.log('Skip placing bet, the bet is stop');
           // If the remaining time is less than 10 seconds, skip placing a bet
           continue;
         }
 
         if (target_totalTrade > TotalTrade) {
-          this.logger.log('Skip placing bet');
+          this.logger.log('Skip placing bet, out range totalTrade today');
           // If the totalTrade of bot more than TotalTrade Config, skip placing a bet
           continue;
         }
@@ -283,34 +320,34 @@ export class EventService {
         let amount = this.getRandomNumberInRange_a(min, max, 1e6);
         let type_place = this.randomize_bet_type_place();
         let place = this.randomize_bet_place(type_place as 'cl' | 'x');
-        //   Start bet
-        setTimeout(async () => {
-          await this.place_bet_on_server({
+
+        list_filter_bots.push({
+          data: {
             uid: uid,
             amount: amount,
             betId: game_info.id,
             place: place,
             server: '24',
             typeBet: type_place,
-          });
-          this.logger.log('Bot Place is success');
-        }, time_bet * 1e3);
+          },
+          time: time_bet * 1e3,
+        });
       }
-      this.logger.log('Auto Bots Place is done');
+
+      const list_bot_random_place: { data: PlaceField; time: number }[] =
+        this.getRandomBotsForBet(list_filter_bots);
+      for (const place of list_bot_random_place) {
+        const { data, time } = place;
+        setTimeout(async () => {
+          await this.place_bet_on_server(data);
+          this.logger.log(
+            `Bot: ${data.uid} has place: ${data.place} - BetId: ${data.betId}`,
+          );
+        }, time);
+      }
+      this.logger.log(`Place bet auto server 24`);
     } catch (err: any) {
       this.error_custom(err);
-    }
-  }
-
-  async place_bet_on_server(data: PlaceField) {
-    try {
-      await this.httpService.axiosRef.post(
-        this.url_server + '/mini-game/v2/place',
-        data,
-      );
-    } catch (err: any) {
-      console.log(err);
-      this.logger.log(`Err place bet Auto: ${err.message}`);
     }
   }
 
@@ -320,9 +357,109 @@ export class EventService {
       // Get Config auto
       const e_s_bet = await this.EConfigModel.findOne({ name: 'e_s_bet' });
       if (!e_s_bet) throw new Error('Config system bet not found');
-      if (!e_s_bet.isEnable) throw new Error('Auto bot is disable');
+      if (!e_s_bet.isEnable) throw new Error('Auto bot is disabled');
       if (!e_s_bet.option.sv_game)
-        throw new Error('Auto bot sv game is disable');
+        throw new Error('Auto bot sv game is disabled');
+
+      // Get list bots and available servers
+      const [list_bots, list_server_available] = await Promise.all([
+        this.get_all_bot_info(),
+        this.MiniGameModel.find({
+          server: { $in: this.list_server_client },
+          isEnd: false,
+        }),
+      ]);
+
+      // Process each game server
+      for (const game_info of list_server_available) {
+        const { id: betId, timeEnd, server } = game_info;
+
+        const list_filter_bots: { data: PlaceField; time: number }[] = [];
+        const current_time = moment().unix();
+        const time_end = moment(`${timeEnd}`).unix();
+        const time_late = time_end - current_time;
+
+        if (time_late < 10) {
+          this.logger.log(
+            `Skipping betting on server ${server}: insufficient remaining time`,
+          );
+          continue;
+        }
+
+        // Filter and prepare bots eligible for betting
+        for (const bot of list_bots) {
+          const { uid, meta, isAvailable } = bot;
+          const { active, TotalTrade } = meta;
+
+          if (!this.isCurrentTimeInRange(active)) {
+            this.logger.log(
+              `Skip placing bet for bot ${uid}: out of active time range (${active})`,
+            );
+            continue;
+          }
+
+          if (!isAvailable) {
+            this.logger.log(`Skip placing bet for bot ${uid}: not available`);
+            continue;
+          }
+
+          const target = await this.UserModel.findById(uid);
+          if (!target) {
+            this.logger.log(
+              `Skip placing bet for bot ${uid}: target user not found`,
+            );
+            continue;
+          }
+
+          const target_totalTrade = target.meta.totalTrade;
+          if (target_totalTrade > TotalTrade) {
+            this.logger.log(
+              `Skip placing bet for bot ${uid}: daily trade limit exceeded`,
+            );
+            continue;
+          }
+
+          // Generate betting details
+          const config_server = await this.get_config_server(
+            server,
+            target.server,
+          );
+          const { max, min } = config_server;
+          const time_bet = this.getRandomNumberInRange(
+            time_late - 50,
+            time_late - 15,
+          );
+          const amount = this.getRandomNumberInRange_a(min, max, 1e6);
+          const type_place = this.randomize_bet_type_place();
+          const place = this.randomize_bet_place(type_place as 'cl' | 'x');
+
+          list_filter_bots.push({
+            data: {
+              uid,
+              amount,
+              betId,
+              place,
+              server: '24',
+              typeBet: type_place,
+            },
+            time: time_bet * 1000,
+          });
+        }
+
+        // Select random bots to place bets and execute with delay
+        const list_bot_random_place =
+          this.getRandomBotsForBet(list_filter_bots);
+        for (const { data, time } of list_bot_random_place) {
+          setTimeout(async () => {
+            await this.place_bet_on_server(data);
+            this.logger.log(
+              `Bot ${data.uid} placed bet ${data.place} on BetId ${data.betId}`,
+            );
+          }, time);
+        }
+
+        this.logger.log(`Auto bets placed on server ${server}`);
+      }
     } catch (err: any) {
       this.error_custom(err);
     }
