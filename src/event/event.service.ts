@@ -439,7 +439,7 @@ export class EventService {
               amount,
               betId,
               place,
-              server: '24',
+              server: server,
               typeBet: type_place,
             },
             time: time_bet * 1000,
