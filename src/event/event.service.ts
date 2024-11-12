@@ -315,7 +315,7 @@ export class EventService {
         // Generate random time for the bot to place a bet (between 50s and 20s before time ends)
         let time_bet = this.getRandomNumberInRange(
           time_late - 50,
-          time_late - 15,
+          time_late - 30,
         );
         let amount = this.getRandomNumberInRange_a(min, max, 1e6);
         let type_place = this.randomize_bet_type_place();
@@ -341,7 +341,7 @@ export class EventService {
         setTimeout(async () => {
           await this.place_bet_on_server(data);
           this.logger.log(
-            `Bot: ${data.uid} has place: ${data.place} - BetId: ${data.betId}`,
+            `Bot ${data.uid} placed bet ${data.place} on BetId ${data.betId} Server: ${data.server}`,
           );
         }, time);
       }
@@ -426,8 +426,8 @@ export class EventService {
           );
           const { max, min } = config_server;
           const time_bet = this.getRandomNumberInRange(
+            time_late - 200,
             time_late - 50,
-            time_late - 15,
           );
           const amount = this.getRandomNumberInRange_a(min, max, 1e6);
           const type_place = this.randomize_bet_type_place();
@@ -453,7 +453,7 @@ export class EventService {
           setTimeout(async () => {
             await this.place_bet_on_server(data);
             this.logger.log(
-              `Bot ${data.uid} placed bet ${data.place} on BetId ${data.betId}`,
+              `Bot ${data.uid} placed bet ${data.place} on BetId ${data.betId} Server: ${data.server}`,
             );
           }, time);
         }
