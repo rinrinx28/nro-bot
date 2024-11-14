@@ -250,8 +250,8 @@ export class EventService {
         data,
       );
     } catch (err: any) {
-      console.log(err);
-      this.logger.log(`Err place bet Auto: ${err.message}`);
+      const { message } = err.response.data.message;
+      this.logger.log(`Err place bet Auto: ${message}`);
     }
   }
 
