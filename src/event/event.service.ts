@@ -289,25 +289,31 @@ export class EventService {
         let isRange = this.isCurrentTimeInRange(active);
 
         if (!isRange) {
-          this.logger.log(`Skip placing bet: out range time active ${active}`);
+          this.logger.log(
+            `Skip placing bet for bot ${uid}: out of active time range (${active})`,
+          );
           // If the time current is less than time range, skip placing a bet
           continue;
         }
 
         if (!isAvailable) {
-          this.logger.log('Skip placing bet: Bot not is available');
+          this.logger.log(`Skip placing bet for bot ${uid}: not available`);
           // If the bot not is available, skip placing a bet
           continue;
         }
 
         if (time_late < 10) {
-          this.logger.log('Skip placing bet, the bet is stop');
+          this.logger.log(
+            `Skipping betting on server 24: insufficient remaining time`,
+          );
           // If the remaining time is less than 10 seconds, skip placing a bet
           continue;
         }
 
         if (target_totalTrade > TotalTrade) {
-          this.logger.log('Skip placing bet, out range totalTrade today');
+          this.logger.log(
+            `Skip placing bet for bot ${uid}: daily trade limit exceeded`,
+          );
           // If the totalTrade of bot more than TotalTrade Config, skip placing a bet
           continue;
         }
