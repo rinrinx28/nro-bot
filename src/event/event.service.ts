@@ -323,7 +323,7 @@ export class EventService {
           time_late - 50,
           time_late - 30,
         );
-        let amount = this.getRandomNumberInRange_a(min, max, 1e6);
+        let amount = this.getRandomNumberInRange_a(50e6, 1e9, 1e6);
         let type_place = this.randomize_bet_type_place();
         let place = this.randomize_bet_place(type_place as 'cl' | 'x');
 
@@ -435,7 +435,7 @@ export class EventService {
             time_late - 200,
             time_late - 50,
           );
-          const amount = this.getRandomNumberInRange_a(min, max, 1e6);
+          const amount = this.getRandomNumberInRange_a(50e6, 1e9, 1e6);
           const type_place = this.randomize_bet_type_place();
           const place = this.randomize_bet_place(type_place as 'cl' | 'x');
 
