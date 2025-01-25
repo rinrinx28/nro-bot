@@ -239,7 +239,7 @@ export class EventService {
     const [start, end] = range.split('-').map(Number);
     const currentHour = new Date().getHours();
 
-    return currentHour >= start && currentHour < end;
+    return currentHour >= start && currentHour <= end;
   }
 
   // TODO Call API to Main Server
